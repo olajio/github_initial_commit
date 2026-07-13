@@ -80,6 +80,8 @@ class Result:
     author_email: str = ""       # git author email recorded in the commit
     authored_date: str = ""      # ISO-8601 date of the initial commit
     last_commit_date: str = ""   # ISO-8601 date of the latest commit
+    repo_created_at: str = ""    # ISO-8601 date the repo was created (created_at)
+    repo_pushed_at: str = ""     # ISO-8601 date of the last push (pushed_at)
     status: str = ""             # "ok" or an error description
 
 
@@ -296,6 +298,8 @@ def get_repo_metadata(client: GitHubClient, api: str, owner: str,
         return False
     data = resp.json()
     result.default_branch = data.get("default_branch", "") or ""
+    result.repo_created_at = data.get("created_at", "") or ""
+    result.repo_pushed_at = data.get("pushed_at", "") or ""
     return True
 
 
