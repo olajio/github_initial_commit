@@ -1,0 +1,10 @@
+# One repository per line. Blank lines and lines starting with '#' are ignored.
+# Any of these forms work:
+#   https://github.com/owner/repo
+#   https://github.com/owner/repo.git
+#   git@github.com:owner/repo.git
+#   owner/repo
+#   https://github.your-enterprise.com/owner/repo   (GitHub Enterprise)
+
+octocat/Hello-World
+https://github.com/torvalds/linux
