@@ -68,6 +68,8 @@ columns:
 | `author_name`, `author_email` | git author recorded in the first commit |
 | `authored_date` | ISO-8601 date of the **first** commit |
 | `last_commit_date` | ISO-8601 date of the **latest** commit on the default branch |
+| `repo_created_at` | ISO-8601 date the repository was created (`created_at`) |
+| `repo_pushed_at` | ISO-8601 date of the last push (`pushed_at`) |
 | `status` | `ok`, or the reason it failed (not found, empty repo, etc.) |
 
 > Note: `author_login` is the GitHub account tied to the commit. For repos whose
