@@ -73,11 +73,13 @@ class Result:
     input: str
     owner: str = ""
     repo: str = ""
+    default_branch: str = ""     # main / master / other
     initial_commit_sha: str = ""
-    author_login: str = ""       # GitHub account login (may be blank)
+    author_login: str = ""       # GitHub account login of initial committer
     author_name: str = ""        # git author name recorded in the commit
     author_email: str = ""       # git author email recorded in the commit
-    authored_date: str = ""      # ISO-8601 date of the commit
+    authored_date: str = ""      # ISO-8601 date of the initial commit
+    last_commit_date: str = ""   # ISO-8601 date of the latest commit
     status: str = ""             # "ok" or an error description
 
 
@@ -279,13 +281,37 @@ class GitHubClient:
 # --------------------------------------------------------------------------- #
 # Core logic: find the initial commit
 # --------------------------------------------------------------------------- #
+def get_repo_metadata(client: GitHubClient, api: str, owner: str,
+                      repo: str, result: Result) -> bool:
+    """Populate default_branch. Returns False (with result.status set) on error."""
+    resp = client.get(f"{api}/repos/{owner}/{repo}")
+    if resp.status_code == 404:
+        result.status = "not found (or token lacks access)"
+        return False
+    if resp.status_code == 401:
+        result.status = "unauthorized (check the PAT)"
+        return False
+    if resp.status_code != 200:
+        result.status = f"error: HTTP {resp.status_code} {resp.text[:120]}"
+        return False
+    data = resp.json()
+    result.default_branch = data.get("default_branch", "") or ""
+    return True
+
+
 def get_initial_commit(client: GitHubClient, host: str, owner: str,
                        repo: str) -> Result:
     result = Result(input=f"{owner}/{repo}", owner=owner, repo=repo)
     api = api_base_for_host(host)
+
+    # 1st call: repository metadata -> default branch.
+    if not get_repo_metadata(client, api, owner, repo, result):
+        return result
+
     commits_url = f"{api}/repos/{owner}/{repo}/commits"
 
-    # 1st call: one commit per page. The Link header reveals the last page.
+    # 2nd call: one commit per page. Page 1 is the *latest* commit and the
+    # Link header reveals the last page (which holds the *oldest* commit).
     resp = client.get(commits_url, params={"per_page": 1})
 
     if resp.status_code == 404:
@@ -305,6 +331,10 @@ def get_initial_commit(client: GitHubClient, host: str, owner: str,
     if not isinstance(first_page, list) or not first_page:
         result.status = "no commits found"
         return result
+
+    # Page 1's commit is the most recent -> record the last-commit date.
+    latest_meta = (first_page[0].get("commit") or {}).get("author") or {}
+    result.last_commit_date = latest_meta.get("date", "") or ""
 
     # Determine the oldest commit's page from the Link header.
     link = resp.headers.get("Link", "")
@@ -373,18 +403,21 @@ def write_csv(path: str, results: list[Result]) -> None:
 
 def print_table(results: list[Result]) -> None:
     print()
-    print(f"{'REPOSITORY':<40} {'INITIAL COMMIT AUTHOR':<28} {'DATE':<12} STATUS")
-    print("-" * 100)
+    print(f"{'REPOSITORY':<32} {'BRANCH':<10} {'INITIAL AUTHOR':<22} "
+          f"{'FIRST':<11} {'LAST':<11} STATUS")
+    print("-" * 110)
     for r in results:
         repo_col = f"{r.owner}/{r.repo}" if r.owner else r.input
         if r.author_login:
-            author = f"{r.author_login}"
+            author = r.author_login
             if r.author_name and r.author_name != r.author_login:
                 author += f" ({r.author_name})"
         else:
             author = r.author_name or "-"
-        date = (r.authored_date or "")[:10]
-        print(f"{repo_col[:39]:<40} {author[:27]:<28} {date:<12} {r.status}")
+        first = (r.authored_date or "")[:10]
+        last = (r.last_commit_date or "")[:10]
+        print(f"{repo_col[:31]:<32} {(r.default_branch or '-')[:9]:<10} "
+              f"{author[:21]:<22} {first:<11} {last:<11} {r.status}")
     print()
 
 
@@ -398,8 +431,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("-i", "--input", default="repo_list.txt",
                         help="File with one repository per line "
                              "(default: repo_list.txt).")
-    parser.add_argument("-o", "--output", default=None,
-                        help="Optional CSV output path.")
+    parser.add_argument("-o", "--output", default="initial_commit_results.csv",
+                        help="CSV output path "
+                             "(default: initial_commit_results.csv).")
     parser.add_argument("--token", default=None,
                         help="GitHub PAT. Falls back to $GITHUB_TOKEN / "
                              "$GITHUB_PAT.")

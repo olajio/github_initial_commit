@@ -7,8 +7,9 @@ of GitHub repositories.
 
 Getting the first commit does **not** require walking every commit. GitHub sends
 a `Link` header when paginating; by asking for `per_page=1` the `rel="last"`
-link points straight at the page holding the oldest commit. So each repo costs
-**at most 2 API calls**, no matter how large it is.
+link points straight at the page holding the oldest commit, while page 1 is the
+**latest** commit. So each repo costs **at most 3 API calls** (one for repo
+metadata / default branch, two for the commit range), no matter how large it is.
 
 To stay clear of rate limiting the script:
 
@@ -30,10 +31,10 @@ export GITHUB_TOKEN=ghp_your_pat_here   # PAT with read access to the repos
 ## Usage
 
 ```bash
-# Reads repo_list.txt, prints a table:
+# Reads repo_list.txt, prints a table and writes initial_commit_results.csv:
 python3 find_initial_commit.py
 
-# Custom input file and CSV output:
+# Custom input file and CSV output path:
 python3 find_initial_commit.py -i repos.txt -o results.csv
 
 # Be extra gentle (0.5s between calls) and pause earlier:
@@ -55,15 +56,18 @@ https://github.your-enterprise.com/owner/repo   # GitHub Enterprise Server
 
 ## Output
 
-A table on stdout plus (optionally) a CSV with these columns:
+A table on stdout plus a CSV (default `initial_commit_results.csv`) with these
+columns:
 
 | column | meaning |
 | --- | --- |
 | `owner`, `repo` | the repository |
+| `default_branch` | the repo's default branch (`main`, `master`, or other) |
 | `initial_commit_sha` | SHA of the oldest commit |
-| `author_login` | GitHub account that made it (blank if history was imported) |
-| `author_name`, `author_email` | git author recorded in the commit |
-| `authored_date` | ISO-8601 date of the commit |
+| `author_login` | GitHub account that made the first commit (blank if history was imported) |
+| `author_name`, `author_email` | git author recorded in the first commit |
+| `authored_date` | ISO-8601 date of the **first** commit |
+| `last_commit_date` | ISO-8601 date of the **latest** commit on the default branch |
 | `status` | `ok`, or the reason it failed (not found, empty repo, etc.) |
 
 > Note: `author_login` is the GitHub account tied to the commit. For repos whose
